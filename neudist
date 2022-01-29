@@ -1,0 +1,524 @@
+#! /bin/sh
+# This is basically what displaycal would do for me before python 2.7 was
+# killed. It's a helper script around various Argyll CMS utilities.
+
+# Should work in any Bourne shell, I believe.
+
+# change these two if you want to change the default corrections file/path.
+ARGYLLPATH='/usr/local/share/ArgyllCMS/'
+CORR_NAME='/WLEDFamily_07Feb11.ccss'
+
+# compose cli argument based on the above two variables.
+CORRECTIONS='-X'"$ARGYLLPATH""$CORR_NAME"
+
+PROGNAME="$(echo "$0" | sed 's!^.*/!!')"
+
+# Program defaults are defined here.
+# An empty string means that the option is not passed to dispwin,
+# dispread, etc..
+TEMPERATURE='-w0.3127,0.329' # d65 srgb white point
+GAMMA_RAMP='-gs'
+BRIGHTNESS=''
+AUTOBRIGHT='true'
+DRIFT='' # -Ib, -Iw, -Ibw - black level and white level drift compensation
+PROFNAME=''
+DISPLAY='-d1'
+DEVICE='-c1'
+WINDOWSIZE='1.33'
+WINDOWRECT='-P0.5,0.5,'"$WINDOWSIZE"
+VERBOSE='-v2'
+TESTCHART_PATCHES='-f836' # this is the targen default, but 500 might be ample.
+
+MODE='all' # name of function to run before exiting; defaults to
+            # calibrating and profiling
+
+# can't set variables within while loops?
+
+yesno() { # returns true (0) or false (1) based on yes/no prompt
+  ynprompt=''
+  valid='false'
+  while true; do
+    if [ "$1" ]; then
+      echo "$1"':'
+    fi
+    read -r ynprompt
+    case "$ynprompt" in
+      [Yy][Ee][Ss]|[Yy])
+        return 0
+        ;;
+      [Nn][Oo]|[Nn])
+        return 1
+        ;;
+      *)
+        echo "Invalid response. Please answer 'yes' or 'no'."
+        ;;
+    esac
+  done  
+}
+
+helptext() {
+  # YAHTACM? nah. That's a dumb name.
+  # YADCA? Yet another DisplayCal Alternative?
+  # YAWDISC? Yet Another Wrapper for DispCal?
+  # YAWA? Yet Another Wrapper for Argyll cms?
+
+  # DCAS? DisplayCal Alternative script?
+  # Not Entirely Unlike Displaycal (NEUD?) Haha, I love it.
+  # NEUDPROF (Not-Entirely-Unlike-Displaycal PROFiler)
+  # NEUD-PROFILE: Not Entirely Unlike Displaycal PROFILEr
+  # Not Entirely Unusable Display Tester: NEUDIST
+  # NEUDIST-YAC: Not Entirely Unusable Display Tester: Yet Another Color manager
+  # PROFILE-NEUD: PROFILEr, Not Entirely Unlike Displaycal. Perfect.
+
+  # NEUDIST-COLONI-PROF : Not Entirely Unlike Displaycal: The COLOr NormalIzation PROFiler
+  # NEUDIST-COLONI-PROF : Not Entirely Unlike Displaycal: The COLOr NormalIzation PROFiler
+  # NEUDIST-PROF: Not Entirely Unlike Displaycal
+  # Not Entirely Useless Display Tester: NEUDIST
+  # 'Not Entirely Unlike a Display Tester: NEUDIST'
+  # NEUDIST is good enough. 'Not Entirely Unlike a Display Tester: NEUDIST' it is.
+  echo "$PROGNAME"':'
+  cat << EOF
+        profile-neud: a PROFILEr, Not Entirely Unlike Displaycal.
+
+Yet another a helper tool for Argyll color management.
+My stand-in for displaycal, since it is currently inoperable without Python 2.7 and
+WxWidgets bindings.
+
+This program should be runnable with no arguments except for a profile name, but
+options can also be customized at run-time.
+If you want an option that exists in Argyll (or to an extent DisplayCal), but
+that does not exist here, please make an issue or pull request at your earliest
+convenience and I will try to get it in for you.
+
+By default, calibration and profiling will be done to screen 1 with measuring
+device 1, and will target sRGB as closely as I know how to get it.
+If your device is not a generic, narrow gamut white LED backlit LCD,
+you should at least provide a correction file (if using a colorimeter).
+
+IMPORTANT NOTE:
+Unlike Argyll's 'dispcal,' this program currently requires spaces between flags
+and their assigned values. If this bothers you more than it does me, please
+report an issue and i will try to change this behavior.
+EOF
+}
+usage() {
+  echo 'Usage:'
+  echo '  '"$PROGNAME"' [options] output_profile_name'
+  echo
+  cat << EOF
+Options:
+--all                Perform all profiling, calibration, test chart generation,
+                     and .icc profile generation, all in one shot.
+                      This is the default behavior when no mode is specified.
+                     Specifically, this option performs the following actions:
+                         1. Clear (reset) the video card gamma correction table
+                              (VCGT/VGCT/RAMDAC) with 'dispwin -c'.
+                         2. Perform initial calibration with 'dispcal'
+                              (creates a .cal file with VCGT values).
+                              (--calib)
+                         3. Generate a testchart (.ti1) using targen
+                              (--testchart)
+                         4. 
+-b, --brightness <n> Specify a display brightness in nits (cd/m^2).
+                         (default: auto detect)
+-c, --device <num>   Specify a measuring device to use - 'spotread -h' can
+                         display a list of all devices, if you don't know what
+                         number yours is. (Default: 1)
+--colorant <num>     Choose a colorant combination. See the '-d' option of
+                         'targen' for a full list. You likely want '3', which
+                         is the normal choice for "Video RGB."
+                         (default: 3)
+--colortemp <num>    Use a white point of 'num' degrees Kelvin.
+                         controls the (White daylight locus target). If unset,
+                         Argyll's 'dispcal' uses the screen's natural white
+                         point to allow the highest depth of color possible. If
+                         you want to set this, a commonly standardized value is
+                         6500 degrees Kelvin.
+
+                         If --whitepoint is also present, the later flag in the
+                         command line will take priority.
+
+                         See also: --whitepoint (which uses chromaticity 
+                         coordinates to adjust this white point instead).
+--correction <file>  Choose a colorimeter corrections file (.ccss, .ccmx).
+--no-correction      Do not use any colorimeter correction matrices (probably
+                         desireable for a spectrometer - but I do not have one
+                         of those, regrettably).
+EOF
+echo '                         (default: '"'""$ARGYLLPATH"'/WLEDFamily_07Feb11.ccss'"'"')'
+   cat <<EOF
+                         You can edit the lines near the very top of this
+                         script to change the default path.
+-d, --display <num>  Specify your display number. 'dispcal -h' can show a list
+                         of valid display numbers and their names.
+                         (Default: 1)
+--drift <b|w>        If your display has an unstable black or white point
+                         (or both), use this option to have 'dispcal' and
+                         'dispread' account for that.
+
+                         Examples of displays with unstable white points are
+                         screens that automatically adjust brightness based
+                         on the picture (ABL), and devices like CRT's and
+                         many plasma screens. Some OLED displays also have
+                         a similar behavior to slow aging.
+
+                         I believe significant black level drift to be
+                         somewhat rare, but can imagine it occurring on
+                         some CRT's where the phosphors fade slowly or
+                         where the tube is not sufficiently warmed up when
+                         calibration/profiling begins. But if it's warmed
+                         up, You probably don't even need it there.
+
+                         To make use of both black and white level drift
+                         compensation, use 'bw'.
+
+-h, --help           Display this help text.
+-g, --gamma <value>  Specifies a gamma ramp.
+                         This takes lots of words to fully explain.
+                         Please refer to:
+                             https://www.argyllcms.com/doc/dispcal.html#g
+                         if you need the full, detailed explanation.
+
+                         Most people should probably use the default here.
+                         (default: sRGB ramp ('s'))
+-G, --gamma-actual   Use the actual, technical gamma value specified. You
+    <value>              probably do not actually want this. See:
+                             https://www.argyllcms.com/doc/dispcal.html#G
+                         for more information about this flag.
+
+                         For most people, you should use -g instead, or let the
+                         default be used instead (-g s).
+--patches <num>      When creating a test chart (--testchart), use 'num'
+                         patches. Larger values mean a slower profiling stage,
+                         but possibly better results. 500 might be an
+                         acceptable number here, dependant on other factors.
+                         Poor gamut displays might benefit from larger numbers
+                         of patches.
+                         Smaller numbers may be good for displays with erratic
+                         responsivity or auto-dimming features.
+                         (default: 836, which is the Argyll default.)
+--patch-scale <num>  Change the resolution of the patch window on the screen
+                         For displays with Automatic brightness level
+                         adjustments based on screen content (such as some
+                         plasmas), this being small can be vital to getting
+                         a dependable result. 
+                         This resolution takes effect as a multiplier value
+                         passed to dispcal/dispread.
+                         (default: 1.33)
+--profile            Perform only the profiling step on output_profile_name
+                         and exit. Use this if you have already done a
+                         calibration (--calib) and made a testchart
+                         (--testchart), but need to create a '.ti3'.
+                         '.ti3' files are needed to finally generate an ICC/ICM
+                         file.
+--testchart          Create a .ti1 testchart. This is required before the
+                         profiling stage can be performed.
+                         See also: --patches, which controls how many patches
+                         this test chart uses.
+-v, --verbose <num>  Use a specified verbosity level, when supported in the
+                         underlying Argyll programs. 'Num' is an optional
+                         parameter specifying the specific level for 'dispcal,'
+                         but for other programs with only one verbosity level
+                         this can be omitted.
+                         If num is omitted, 'dispcal' will default to -v 2.
+                         A value of '0' will turn off verbosity.
+-w, --whitepoint     Use a white point specified in comma-separated
+    <x,y>                chromaticity coordinates (x,y).
+
+                         If --colortemp is also present, the later flag in the
+                         command line will take priority.
+                         See also: --colortemp.
+
+                         (default: 0.3127,0.329 - the D65 white point)
+
+If you want an option that exists in Argyll but which is not represented here,
+please open an issue or send a pull request.
+                     
+EOF
+  
+}
+
+# prompt for input until desired input is given
+# while case "$ynprompt" in [Yy][Ee][Ss]|[Yy]|[Nn][Oo]|[Nn]) false;; *) read -r ynprompt;; esac do echo 'hi'; done
+
+# Pass an argument for the title/dir name of the profile
+# parse args until one that doesn't start with '-' is found
+while case $1 in -*) true;; *) false;; esac; do
+  case $1 in
+    --all)
+      MODE='all' # this is also the default if no mode is requested
+      ;;
+    -b|--brightness|--bright|--nits|--cdm2)
+      AUTOBRIGHT=''
+      BRIGHTNESS="$2"
+      shift 1
+      ;;
+    -ab) # auto-brightness - automatically detect brightness level (default)
+      AUTOBRIGHT='true'
+      ;;
+    --calibrate) # when passed, only perform calibration stage
+      MODE='calib' # name of appropriate function
+      ;;
+    -c|--dev|--device) # colorimeter device
+      DEVICE='-c'"$2"
+      shift 1
+      ;;
+    --colorant)
+      COLORANT='-d3' # 3=Video RGB, see targen -h
+      ;;
+    --correction|--cor|--corrections)
+      CORRECTIONS='-X'"$2"
+      shift 1
+      ;;
+    --no-correction|--no-corrections)
+      CORRECTIONS=''
+      ;;
+    -d|--display)
+      DISPLAY='-d'"$2"
+      shift 1
+      ;;
+    --drift)
+      DRIFT='-I'"$2"
+      shift 1
+      ;;
+    -h|--help)
+      helptext
+      exit 0
+      ;;
+    -g|--gamma)
+      # see https://www.argyllcms.com/doc/dispcal.html#g
+      GAMMA_RAMP='-g'"$2"
+      shift 1
+      ;;
+    -G|--gamma-actual)
+      # see https://www.argyllcms.com/doc/dispcal.html#G
+      GAMMA_RAMP='-G'"$2"
+      shift 1
+      ;;
+    --patches)
+      TESTCHART_PATCHES="$2"
+      shift 1
+      ;;
+    --profile)
+      MODE='profile'
+      ;;
+    --patch-scale)
+      WINDOWSIZE="$2"
+      WINDOWRECT='-P0.5,0.5,'"$WINDOWSIZE"
+      shift 1
+      ;;
+    --targen|--testchart)
+      MODE='testchart'
+      ;;
+    -t|--temperature|--temp|--colortemp) # temperature
+      TEMPERATURE='-t'"$2"
+      shift 1
+      ;;
+    -w|--whitepoint|--white-point) # whitepoint in coordinates
+      TEMPERATURE='-w'"$2"
+      shift 1
+      ;;
+    -v|--verbose) # verbosity
+      if [ "$#" -gt 1 ]; then
+        case "$2" in
+          [0-9]*) # hopefully this will be a real number
+            if [ "$2" -eq 0 ]; then
+              VERBOSE='' # do not be verbose
+            else
+              VERBOSE='-v'"$2"
+            fi
+            shift 1
+            ;;
+          *)
+            VERBOSE='-v2'
+            ;;
+        esac;
+      fi
+      ;;
+    *)
+      echo "Warning: Unknown parameter passed to listPackages: ""$1" 1>&2
+      ;;
+  esac
+  shift 1
+done
+
+if [ "$#" -lt 1 ]; then
+  echo 'WARNING: No name was given for the output profile. If we continue,'
+  echo 'a default name ('"'profile'"') will be used.'
+  yesno 'Is that OK?'
+  if [ "$?" = '0' ]; then # continue
+    PROFNAME='profile'
+  else
+    exit 0
+  fi
+else
+  PROFNAME="$1"
+  shift 1
+fi
+
+echo 'Making profile for '"$PROFNAME"'.'
+mkdir -p "$PROFNAME"
+cd "$PROFNAME"
+echo 'Entered directory: '"$PWD"
+
+if [ "$AUTOBRIGHT" ]; then
+  BRIGHTNESS=''
+else
+  if [ "$BRIGHTNESS" ]; then
+    BRIGHTNESS='-b'"$BRIGHTNESS"
+  else
+    1>&2 echo 'warning: condition that should be unreachable was reached in'
+    1>&2 echo 'script while setting requested brightness value. Setting to 80.'
+    BRIGHTNESS='-b80'
+  fi
+fi
+
+# info:
+#
+# v2: verbosity 2
+# d1: display 1
+# c1: device (colorimeter) 1
+# yn: I have no idea at all.
+# P: Test window position
+# X: correction matrix
+# qh: high quality (qm would be medium)
+# m: skip adjustment of monitor controls
+# w: set white point as chromaticity coordinates
+# (t: set white point in degrees kelvin)
+# b: brightness (nits)
+# gs: srgb curve
+# f1.0: idk but use it on lcd's with non absolute zero black point. probably what i was missing doing this before.
+# k0: don't automatically set black point, make it zero artificially.
+# A4.0: neutral to black point bending rate, 4.0 default
+# b: "forces source 0,0,0 to map to destination 0,0,0. This may be useful with
+#     displays that have a very dark black point, and with an instrument is
+#     unable to measure it precisely, and where it is known in some other way
+#     that the display is very well behaved from black (i.e. that it has no
+#     "dead zone" above zero device input). Using this option with a display
+#     that is not well behaved, may result in a loss of shadow detail. This
+#     will override any -k factor."
+
+calib() {
+dispcal \
+  $VERBOSE \
+  $DEVICE \
+  -c1 \
+  -yn \
+  "$WINDOWRECT" \
+  "$CORRECTIONS" \
+  -qh \
+  -m \
+  $TEMPERATURE \
+  $BRIGHTNESS \
+  $GAMMA_RAMP \
+  $DRIFT \
+  -f1.0 \
+  -k0 \
+  -A4.0 \
+  -b \
+  "1"
+}
+
+# profile
+profile() {
+  # dispread only has one verbosity level, unlike dispcal.
+  VERB_PROF=''
+  if [ "$VERBOSE" ]; then
+    VERB_PROF='-v'
+  fi
+# k: load calibration into VGCT while reading
+dispread \
+  $VERB_PROF \
+  $DEVICE \
+  -c1 \
+  $DRIFT \
+  -yn \
+  "$WINDOWRECT" \
+  -X "$ARGYLLPATH"'/WLEDFamily_07Feb11.ccss' \
+  -k "$1"'.cal' \
+  "$1"
+}
+
+# actually make an icc profile from info from the .ti3
+# v: verbose
+# D: description
+# aX: XYZLUT + matrixh
+profile_calc() {
+  colprof -v -D"$1"' - Argyll CMS' -qh -aX "$1"
+}
+
+# need to use targen to make a .ti1 file
+# d3: video rgb
+# f500: 500 patches
+testchart() {
+  targen -d3 $TESTCHART_PATCHES "$1"
+}
+
+profile_check() {
+profcheck \
+  "$1"'.ti3' \
+  "$1"'.icc'
+}
+
+# make the actuall .icc file containing profile-based lookup tables
+create_plot() {
+iccgamut \
+  -v \
+  -w \
+  -ir \
+  -ff \
+  -on \
+  -d10.00 \
+  "$1"'.icc'
+}
+
+# currently unused
+view_gamuts_1() {
+viewgam \
+  -cw \
+  -t0 \
+  -w /usr/share/DisplayCAL/ref/sRGB.gam \
+  -cn \
+  -t.3 \
+  -s "$1"'.gam' \
+  -i "$1"'.wrl'
+}
+
+# currently unused
+view_gamuts_2() {
+viewgam\
+  -cw \
+  -t0 \
+  -w /usr/share/DisplayCAL/ref/ClayRGB1998.gam \
+  -cn \
+  -t.3 \
+  -s "$1"'.gam' \
+  -i "$1"' vs ClayRGB1998.wrl'
+}
+
+# currently unused
+view_gamuts_3() {
+viewgam \
+  -cw \
+  -t0 \
+  -w /usr/share/DisplayCAL/ref/SMPTE431_P3.gam \
+  -cn \
+  -t.3 \
+  -s "$1"'.gam' \
+  -i "$1"' vs SMPTE431_P3.wrl'
+}
+
+main() {
+# echo 'waiting ten seconds for the user to do whatever.'
+# sleep 10
+#  xcalib -c # same as dispwin -c, but xcalib is not part of Argyll CMS
+# reset "ramdac" color ramps
+  dispwin -c # TODO: make it possible to specify which display to reset
+  calib "$@"
+  testchart "$1"
+  profile "$@"
+  profile_calc "$@"
+  profile_check "$1"
+}
+echo 'Running in mode "'"$MODE"'".'
+$MODE "$PROFNAME" "$@" | tee "$PROFNAME"'.log'
