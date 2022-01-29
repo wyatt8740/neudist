@@ -2,6 +2,10 @@
 # This is basically what displaycal would do for me before python 2.7 was
 # killed. It's a helper script around various Argyll CMS utilities.
 
+# for now, it's a bit hacky, because I mainly wrote it for my system. But
+# overall, apart from a couple hardcoded paths and defaults for my laptop,
+# I think it's pretty good. Use --help for help.
+
 # Should work in any Bourne shell, I believe.
 
 # change these two if you want to change the default corrections file/path.
@@ -56,51 +60,6 @@ yesno() { # returns true (0) or false (1) based on yes/no prompt
   done  
 }
 
-helptext() {
-  # YAHTACM? nah. That's a dumb name.
-  # YADCA? Yet another DisplayCal Alternative?
-  # YAWDISC? Yet Another Wrapper for DispCal?
-  # YAWA? Yet Another Wrapper for Argyll cms?
-
-  # DCAS? DisplayCal Alternative script?
-  # Not Entirely Unlike Displaycal (NEUD?) Haha, I love it.
-  # NEUDPROF (Not-Entirely-Unlike-Displaycal PROFiler)
-  # NEUD-PROFILE: Not Entirely Unlike Displaycal PROFILEr
-  # Not Entirely Unusable Display Tester: NEUDIST
-  # NEUDIST-YAC: Not Entirely Unusable Display Tester: Yet Another Color manager
-  # PROFILE-NEUD: PROFILEr, Not Entirely Unlike Displaycal. Perfect.
-
-  # NEUDIST-COLONI-PROF : Not Entirely Unlike Displaycal: The COLOr NormalIzation PROFiler
-  # NEUDIST-COLONI-PROF : Not Entirely Unlike Displaycal: The COLOr NormalIzation PROFiler
-  # NEUDIST-PROF: Not Entirely Unlike Displaycal
-  # Not Entirely Useless Display Tester: NEUDIST
-  # 'Not Entirely Unlike a Display Tester: NEUDIST'
-  # NEUDIST is good enough. 'Not Entirely Unlike a Display Tester: NEUDIST' it is.
-  echo "$PROGNAME"':'
-  cat << EOF
-        profile-neud: a PROFILEr, Not Entirely Unlike Displaycal.
-
-Yet another a helper tool for Argyll color management.
-My stand-in for displaycal, since it is currently inoperable without Python 2.7 and
-WxWidgets bindings.
-
-This program should be runnable with no arguments except for a profile name, but
-options can also be customized at run-time.
-If you want an option that exists in Argyll (or to an extent DisplayCal), but
-that does not exist here, please make an issue or pull request at your earliest
-convenience and I will try to get it in for you.
-
-By default, calibration and profiling will be done to screen 1 with measuring
-device 1, and will target sRGB as closely as I know how to get it.
-If your device is not a generic, narrow gamut white LED backlit LCD,
-you should at least provide a correction file (if using a colorimeter).
-
-IMPORTANT NOTE:
-Unlike Argyll's 'dispcal,' this program currently requires spaces between flags
-and their assigned values. If this bothers you more than it does me, please
-report an issue and i will try to change this behavior.
-EOF
-}
 usage() {
   echo 'Usage:'
   echo '  '"$PROGNAME"' [options] output_profile_name'
@@ -237,6 +196,60 @@ please open an issue or send a pull request.
 EOF
   
 }
+
+
+helptext() {
+  # YAHTACM? nah. That's a dumb name.
+  # YADCA? Yet another DisplayCal Alternative?
+  # YAWDISC? Yet Another Wrapper for DispCal?
+  # YAWA? Yet Another Wrapper for Argyll cms?
+
+  # DCAS? DisplayCal Alternative script?
+  # Not Entirely Unlike Displaycal (NEUD?) Haha, I love it.
+  # NEUDPROF (Not-Entirely-Unlike-Displaycal PROFiler)
+  # NEUD-PROFILE: Not Entirely Unlike Displaycal PROFILEr
+  # Not Entirely Unusable Display Tester: NEUDIST
+  # NEUDIST-YAC: Not Entirely Unusable Display Tester: Yet Another Color manager
+  # PROFILE-NEUD: PROFILEr, Not Entirely Unlike Displaycal. Perfect.
+
+  # NEUDIST-COLONI-PROF : Not Entirely Unlike Displaycal: The COLOr NormalIzation PROFiler
+  # NEUDIST-COLONI-PROF : Not Entirely Unlike Displaycal: The COLOr NormalIzation PROFiler
+  # NEUDIST-PROF: Not Entirely Unlike Displaycal
+  # Not Entirely Useless Display Tester: NEUDIST
+  # 'Not Entirely Unlike a Display Tester: NEUDIST'
+  # NEUDIST is good enough. 'Not Entirely Unlike a Display Tester: NEUDIST' it is.
+  echo "$PROGNAME"':'
+  cat << EOF
+        profile-neud: a PROFILEr, Not Entirely Unlike Displaycal.
+
+Yet another a helper tool for Argyll color management.
+My stand-in for displaycal, since it is currently inoperable without Python 2.7 and
+WxWidgets bindings.
+
+This program should be runnable with no arguments except for a profile name, but
+options can also be customized at run-time.
+If you want an option that exists in Argyll (or to an extent DisplayCal), but
+that does not exist here, please make an issue or pull request at your earliest
+convenience and I will try to get it in for you.
+
+By default, calibration and profiling will be done to screen 1 with measuring
+device 1, and will target sRGB as closely as I know how to get it.
+If your device is not a generic, narrow gamut white LED backlit LCD,
+you should at least provide a correction file (if using a colorimeter).
+
+IMPORTANT NOTE:
+Unlike Argyll's 'dispcal,' this program currently requires spaces between flags
+and their assigned values. If this bothers you more than it does me, please
+report an issue and i will try to change this behavior.
+EOF
+
+  usage
+}
+
+if [ $# -eq 0 ]; then
+  1>&2 usage
+  exit 0
+fi
 
 # prompt for input until desired input is given
 # while case "$ynprompt" in [Yy][Ee][Ss]|[Yy]|[Nn][Oo]|[Nn]) false;; *) read -r ynprompt;; esac do echo 'hi'; done
