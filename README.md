@@ -2,16 +2,17 @@
 
 Not Entirely Unlike a DISplay Tester:
 
-A helper tool (bourne shell script) for Argyll CMS.
+A helper tool (bourne shell script) for calibrating and profiling displays
+with Argyll CMS.
 
 Since DisplayCal is no longer in my Linux distro (Debian Sid) on account of
 Python 2.7 dependencies that got removed, I wrote this helper script to assist
 me in driving Argyll CMS's tools directly.
 
-I am too dumb to remember all of the steps, so I wanted to make a
-"one-stop-shop" tool that would handle my calibration and color profiling
-needs on my (Linux-based) machines, either while I wait for DisplayCAL to get
-ported to Python 3 or maybe even permanently.
+I am too dumb to remember all of the steps for directly using Argyll, so I
+wanted to make a "one-stop-shop" tool that would handle my calibration and
+color profiling needs on my (Linux-based) machines, either while I wait for
+DisplayCAL to get ported to Python 3. Maybe even permanently.
 
 I share this in the hopes that it will help others. If you need a feature that
 Argyll or DisplayCAL exposes which I do not have a way to use, please create
