@@ -22,6 +22,8 @@ PROGNAME="$(echo "$0" | sed 's!^.*/!!')"
 SKIP_ADJUST='' # '-m'
 TEMPERATURE='-w0.3127,0.329' # d65 srgb white point
 GAMMA_RAMP=''
+COLPROF_ALGORITHM='-aX' # XYZ CLUT. The default (-al) is great except that some browsers hate it.
+COLPROF_QUALITY='-qh'
 BRIGHTNESS=''
 COLORANT='-d3'
 AUTOBRIGHT='true'
@@ -83,6 +85,19 @@ Options:
                             (--calc)
                          5. Calculate a final .ICC/.ICM profile using colprof
                          6. Check the profile's accuracy using profcheck
+-a, --algorithm      Algorithm type override
+                         l = Lab cLUT (def.),
+                         x = XYZ cLUT,
+                         X = display XYZ cLUT + matrix,
+                         Y = display XYZ cLUT + debug matrix,
+                         g = gamma+matrix,
+                         s = shaper+matrix,
+                         m = matrix only,
+                         G = single gamma+matrix,
+                         S = single shaper+matrix
+                         If it weren't for problems in some browsers, I would
+                         recommend -a 'l'. As it is, though, you should
+                         probably use 'X' for compatibility.
 -b, --brightness <n> Specify a display brightness in nits (cd/m^2).
                          (default: auto-detect display brightness)
 -c, --device <num>   Specify a measuring device to use - 'spotread -h' can
@@ -176,6 +191,12 @@ Options:
                          (--testchart), but need to create a '.ti3'.
                          '.ti3' files are needed to finally generate an ICC/ICM
                          file.
+-q, --quality <lmhu> Final ICC profile Quality:
+                          Low, Medium, High (default), or Ultra.
+                          Higher levels take more time but might give better
+                          results. The resulting profiles are also usually
+                          significantly larger.
+                          See Argyll's colprof for more information.
 --skip-adjust        Skip interactive display adjustment step
 --srgb               Shorthand for:
                          '--whitepoint-preset D65 --brightness 80 --gamma s'.
@@ -299,6 +320,10 @@ while case $1 in -*) true;; *) false;; esac; do
     --all)
       MODE='all' # this is also the default if no mode is requested
       ;;
+    -a|--algorithm)
+      COLPROF_ALGORITHM='-a'"$2"
+      shift 1
+      ;;
     -b|--brightness|--bright|--nits|--cdm2)
       BRIGHTNESS='-b'"$2"
       shift 1
@@ -359,6 +384,29 @@ while case $1 in -*) true;; *) false;; esac; do
     --patch-scale)
       WINDOWSIZE="$2"
       WINDOWRECT='-P0.5,0.5,'"$WINDOWSIZE"
+      shift 1
+      ;;
+    -q|--quality)
+      level='h'
+      case "$2" in
+        [Ll]|[Ll][Oo][Ww])
+          level=l
+          ;;
+        [Mm]|[Mm][Ee][Dd][Ii][Uu][Mm])
+          level=m
+          ;;
+        [Hh]|[Hh][Ii][Gg][Hh])
+          level=h
+          ;;
+        [Uu]|[Uu][Ll][Tt][Rr][Aa])
+          level=u
+          ;;
+        *)
+          1>&2 echo 'Error: invalid quality level specified. Exiting.'
+          exit 1
+          ;;
+      esac
+      COLORPROF_QUALITY='-q'"$level"
       shift 1
       ;;
     --skip-adjust)
@@ -579,7 +627,7 @@ profile_calc() {
 # PATCH_SEQUENCE "OPTIMIZE_DISPLAY_RESPONSE_DELAY"
 
 
-  colprof -v -D"$1"' - Argyll CMS' -qh "$1"
+  colprof $COLPROF_ALGORITHM $COLPROF_QUALITY -v -D"$1"' - Argyll CMS' -qh "$1"
 }
 
 # need to use targen to make a .ti1 file

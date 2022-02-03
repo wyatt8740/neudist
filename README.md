@@ -44,4 +44,9 @@ is working pretty much on par with DisplayCAL while using far fewer resources.
 
 ### Bugs
 
-Yes.
+* Yes.
+
+* Not my bug, but older Firefox, Seamonkey, and Pale Moon don't like L*A*B
+profiles, it seems. So I have made XYZ cLUT + Matrix the default
+(`--algorithm X`). For the Argyll default, do `--algorithm l`. New firefox
+(tested on 89) seems to handle it alright.
