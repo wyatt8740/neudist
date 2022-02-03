@@ -20,6 +20,7 @@ PROGNAME="$(echo "$0" | sed 's!^.*/!!')"
 # Program defaults are defined here.
 # An empty string means that the option is not passed to dispwin,
 # dispread, etc..
+SKIP_ADJUST='' # '-m'
 TEMPERATURE='-w0.3127,0.329' # d65 srgb white point
 GAMMA_RAMP=''
 BRIGHTNESS=''
@@ -177,6 +178,7 @@ echo '                         (default: '"'""$ARGYLLPATH"'/WLEDFamily_07Feb11.c
                          (--testchart), but need to create a '.ti3'.
                          '.ti3' files are needed to finally generate an ICC/ICM
                          file.
+--skip-adjust        Skip interactive display adjustment step
 --srgb               Shorthand for:
                          '--whitepoint-preset D65 --brightness 80 --gamma s'.
                          If used before a conflicting argument, the later
@@ -360,6 +362,9 @@ while case $1 in -*) true;; *) false;; esac; do
       WINDOWRECT='-P0.5,0.5,'"$WINDOWSIZE"
       shift 1
       ;;
+    --skip-adjust)
+      SKIP_ADJUST='-m'
+      ;;
     --srgb)
       BRIGHTNESS='-b80'
       GAMMA='-gs'
@@ -499,11 +504,11 @@ dispcal \
   $VERBOSE \
   $INTERACTIVE \
   $DEVICE \
+  $SKIP_ADJUST \
   -yn \
   "$WINDOWRECT" \
   "$CORRECTIONS" \
   -qh \
-  -m \
   $TEMPERATURE \
   $BRIGHTNESS \
   $GAMMA_RAMP \
