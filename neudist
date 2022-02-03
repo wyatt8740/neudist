@@ -21,17 +21,19 @@ PROGNAME="$(echo "$0" | sed 's!^.*/!!')"
 # An empty string means that the option is not passed to dispwin,
 # dispread, etc..
 TEMPERATURE='-w0.3127,0.329' # d65 srgb white point
-GAMMA_RAMP='-gs'
+GAMMA_RAMP=''
 BRIGHTNESS=''
+COLORANT='-d3'
 AUTOBRIGHT='true'
 DRIFT='' # -Ib, -Iw, -Ibw - black level and white level drift compensation
 PROFNAME=''
-DISPLAY='-d1'
+# DISPLAY='-d 1'
 DEVICE='-c1'
 WINDOWSIZE='1.33'
 WINDOWRECT='-P0.5,0.5,'"$WINDOWSIZE"
 VERBOSE='-v2'
 TESTCHART_PATCHES='-f836' # this is the targen default, but 500 might be ample.
+INTERACTIVE='' # -Yp to not prompt for enter key
 
 MODE='all' # name of function to run before exiting; defaults to
             # calibrating and profiling
@@ -77,9 +79,12 @@ Options:
                               (--calib)
                          3. Generate a testchart (.ti1) using targen
                               (--testchart)
-                         4. 
+                         4. Profile and create a .ti3 file using dispread
+                            (--calc)
+                         5. Calculate a final .ICC/.ICM profile using colprof
+                         6. Check the profile's accuracy using profcheck
 -b, --brightness <n> Specify a display brightness in nits (cd/m^2).
-                         (default: auto detect)
+                         (default: auto-detect display brightness)
 -c, --device <num>   Specify a measuring device to use - 'spotread -h' can
                          display a list of all devices, if you don't know what
                          number yours is. (Default: 1)
@@ -98,7 +103,9 @@ Options:
                          command line will take priority.
 
                          See also: --whitepoint (which uses chromaticity 
-                         coordinates to adjust this white point instead).
+                         coordinates to adjust this white point instead),
+                         --whitepoint-preset (which lets common illuminants
+                         be specified non-numerically).
 --correction <file>  Choose a colorimeter corrections file (.ccss, .ccmx).
 --no-correction      Do not use any colorimeter correction matrices (probably
                          desireable for a spectrometer - but I do not have one
@@ -139,7 +146,7 @@ echo '                         (default: '"'""$ARGYLLPATH"'/WLEDFamily_07Feb11.c
                          if you need the full, detailed explanation.
 
                          Most people should probably use the default here.
-                         (default: sRGB ramp ('s'))
+                         (default: 2.4, unless on OS X 10.5 or earlier).
 -G, --gamma-actual   Use the actual, technical gamma value specified. You
     <value>              probably do not actually want this. See:
                              https://www.argyllcms.com/doc/dispcal.html#G
@@ -170,6 +177,12 @@ echo '                         (default: '"'""$ARGYLLPATH"'/WLEDFamily_07Feb11.c
                          (--testchart), but need to create a '.ti3'.
                          '.ti3' files are needed to finally generate an ICC/ICM
                          file.
+--srgb               Shorthand for:
+                         '--whitepoint-preset D65 --brightness 80 --gamma s'.
+                         If used before a conflicting argument, the later
+                         argument takes priority. For example, if you want                        
+                         "sRGB, except 120 cd/m^2 brightness," the command
+                         line would read '--srgb --brightness 120'.
 --testchart          Create a .ti1 testchart. This is required before the
                          profiling stage can be performed.
                          See also: --patches, which controls how many patches
@@ -184,11 +197,36 @@ echo '                         (default: '"'""$ARGYLLPATH"'/WLEDFamily_07Feb11.c
 -w, --whitepoint     Use a white point specified in comma-separated
     <x,y>                chromaticity coordinates (x,y).
 
-                         If --colortemp is also present, the later flag in the
-                         command line will take priority.
-                         See also: --colortemp.
+                         If --colortemp or --whitepoint-preset is also present,
+                         the later flag on the command line will take priority.
+                         See also: --colortemp, --whitepoint-preset.
 
-                         (default: 0.3127,0.329 - the D65 white point)
+                         (default: use display native white point)
+--whitepoint-preset  Use a "preset" standard illuminant whitepoint.
+  <name>                 One of:
+                         - D50
+                         - D55
+                         - D65 (CIE standard illuminant, roughly 6500 deg. K.
+                                Actually 6504 deg. K.)
+                                D65 is also the standard for Rec. 709 HDTV.
+                                Recommended.
+                         - D75 (CIE standard illuminant, roughly 7500 deg. K)
+                         - D93 (CIE standard illuminant, roughly 9300 deg. K)
+                         - F2  (simulated fluorescent lamp: 4100 deg. K CRI 60)
+                         - F7  (simulated fluorescent lamp: 6500 deg. K CRI 90)
+                         - F11 (simulated narrow tri-band fluorescent lamp:
+                                4000 deg. K CRI 83)
+
+                         If you are not doing color grading, using the native
+                         white point is recommended. The native white point is
+                         chosen if no temperature or white point arguments are
+                         provided.
+--no-whitepoint      This is only useful when doing something like '--srgb' but
+                         when wanting the native white point. You probably
+                         should not use this. Otherwise, an unspecified
+                         whitepoint is the default (lets Argyll determine your
+                         display's native point).
+
 
 If you want an option that exists in Argyll but which is not represented here,
 please open an issue or send a pull request.
@@ -220,7 +258,7 @@ helptext() {
   # NEUDIST is good enough. 'Not Entirely Unlike a Display Tester: NEUDIST' it is.
   echo "$PROGNAME"':'
   cat << EOF
-        profile-neud: a PROFILEr, Not Entirely Unlike Displaycal.
+        neudist: Not Entirely Unlike a DISplay Tester.
 
 Yet another a helper tool for Argyll color management.
 My stand-in for displaycal, since it is currently inoperable without Python 2.7 and
@@ -262,15 +300,14 @@ while case $1 in -*) true;; *) false;; esac; do
       MODE='all' # this is also the default if no mode is requested
       ;;
     -b|--brightness|--bright|--nits|--cdm2)
-      AUTOBRIGHT=''
-      BRIGHTNESS="$2"
+      BRIGHTNESS='-b'"$2"
       shift 1
       ;;
-    -ab) # auto-brightness - automatically detect brightness level (default)
-      AUTOBRIGHT='true'
-      ;;
-    --calibrate) # when passed, only perform calibration stage
+    --calibrate|--calib) # when passed, only perform calibration stage
       MODE='calib' # name of appropriate function
+      ;;
+    --calc) # when passed, only perform calibration stage
+      MODE='profile_calc' # name of appropriate function
       ;;
     -c|--dev|--device) # colorimeter device
       DEVICE='-c'"$2"
@@ -308,8 +345,11 @@ while case $1 in -*) true;; *) false;; esac; do
       GAMMA_RAMP='-G'"$2"
       shift 1
       ;;
+    -n|--noninteractive)
+      INTERACTIVE='-Yp'
+      ;;
     --patches)
-      TESTCHART_PATCHES="$2"
+      TESTCHART_PATCHES='-f'"$2"
       shift 1
       ;;
     --profile)
@@ -319,6 +359,11 @@ while case $1 in -*) true;; *) false;; esac; do
       WINDOWSIZE="$2"
       WINDOWRECT='-P0.5,0.5,'"$WINDOWSIZE"
       shift 1
+      ;;
+    --srgb)
+      BRIGHTNESS='-b80'
+      GAMMA='-gs'
+      TEMPERATURE='-w0.3127,0.3290'
       ;;
     --targen|--testchart)
       MODE='testchart'
@@ -330,6 +375,42 @@ while case $1 in -*) true;; *) false;; esac; do
     -w|--whitepoint|--white-point) # whitepoint in coordinates
       TEMPERATURE='-w'"$2"
       shift 1
+      ;;
+    --whitepoint-preset) # preset standard values
+      case "$2" in
+        'D50'|'d50')
+          TEMPERATURE='-w0.34567,0.35850'
+          ;;
+        'D55'|'d55')
+          TEMPERATURE='-w0.33242,0.34743'
+          ;;
+        'D65'|'d65')
+          TEMPERATURE='-w0.31271,0.32902'
+          ;;
+        'D75'|'d75')
+          TEMPERATURE='-w0.29902,0.31485'
+          ;;
+        'D93'|'d93')
+          TEMPERATURE='-w0.28315,0.29711'
+          ;;
+        'F2'|'f2')
+          TEMPERATURE='-w0.37208,0.37529'
+          ;;
+        'F7'|'f7')
+          TEMPERATURE='-w0.31292,0.32933'
+          ;;
+        'F11'|'f11')
+          TEMPERATURE='-w0.38052,0.37713'
+          ;;
+        *)
+          1>&2 echo 'Error: invalid whitepoint preset specified. Exiting.'
+          exit 1
+          ;;
+      esac
+      shift 1
+      ;;
+    --no-whitepoint)
+      TEMPERATURE=''
       ;;
     -v|--verbose) # verbosity
       if [ "$#" -gt 1 ]; then
@@ -412,10 +493,12 @@ fi
 #     will override any -k factor."
 
 calib() {
+#    $DISPLAY 
+  set -x
 dispcal \
   $VERBOSE \
+  $INTERACTIVE \
   $DEVICE \
-  -c1 \
   -yn \
   "$WINDOWRECT" \
   "$CORRECTIONS" \
@@ -429,7 +512,8 @@ dispcal \
   -k0 \
   -A4.0 \
   -b \
-  "1"
+  "$1"
+set +x
 }
 
 # profile
@@ -443,12 +527,13 @@ profile() {
 dispread \
   $VERB_PROF \
   $DEVICE \
+  $INTERACTIVE \
   -c1 \
   $DRIFT \
   -yn \
   "$WINDOWRECT" \
-  -X "$ARGYLLPATH"'/WLEDFamily_07Feb11.ccss' \
-  -k "$1"'.cal' \
+  "$CORRECTIONS" \
+  -k"$1"'.cal' \
   "$1"
 }
 
@@ -457,14 +542,25 @@ dispread \
 # D: description
 # aX: XYZLUT + matrixh
 profile_calc() {
-  colprof -v -D"$1"' - Argyll CMS' -qh -aX "$1"
+  #colprof -v -D"$1"' - Argyll CMS' -qh -aX "$1"
+  # displaycal log: -v -qh -aX -bn -C 'copyright'
+# OBSERVER "1931_2"
+# USE_BLACK_POINT_COMPENSATION "NO"
+# BLACK_POINT_CORRECTION "0.0"
+# HIRES_B2A "YES"
+# HIRES_B2A_SIZE "-1"
+# SMOOTH_B2A "YES"
+# PATCH_SEQUENCE "OPTIMIZE_DISPLAY_RESPONSE_DELAY"
+
+
+  colprof -v -D"$1"' - Argyll CMS' -qh "$1"
 }
 
 # need to use targen to make a .ti1 file
 # d3: video rgb
 # f500: 500 patches
 testchart() {
-  targen -d3 $TESTCHART_PATCHES "$1"
+  targen $COLORANT $TESTCHART_PATCHES "$1"
 }
 
 profile_check() {
@@ -505,8 +601,8 @@ viewgam\
   -w /usr/share/DisplayCAL/ref/ClayRGB1998.gam \
   -cn \
   -t.3 \
-  -s "$1"'.gam' \
-  -i "$1"' vs ClayRGB1998.wrl'
+  -s"$1"'.gam' \
+  -i"$1"' vs ClayRGB1998.wrl'
 }
 
 # currently unused
@@ -519,6 +615,9 @@ viewgam \
   -t.3 \
   -s "$1"'.gam' \
   -i "$1"' vs SMPTE431_P3.wrl'
+}
+all () {
+  main "$@"
 }
 
 main() {
@@ -533,5 +632,31 @@ main() {
   profile_calc "$@"
   profile_check "$1"
 }
+
+# debug
+most() {
+  profile "$@"
+  profile_calc "$@"
+  profile_check "$1"
+}
+
 echo 'Running in mode "'"$MODE"'".'
-$MODE "$PROFNAME" "$@" | tee "$PROFNAME"'.log'
+2>&1 $MODE "$PROFNAME" "$@" | tee "$PROFNAME"'.log'
+# colprof -v -S /usr/share/color/argyll/ref/sRGB.icm -D'4000k_10nit - Argyll CMS' -qh 4000k_10nit
+# this is to make a 3dlut
+collinker() {
+  /usr/bin/collink
+    -v
+    -qh
+    -G
+    -ip
+    -r64
+    -n
+    -3c
+    -en
+    -En
+    -b
+    sRGB.icm
+    "$PROFNAME".icc
+    "$PROFNAME".icc
+  }
