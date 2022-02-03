@@ -8,12 +8,11 @@
 
 # Should work in any Bourne shell, I believe.
 
-# change these two if you want to change the default corrections file/path.
-ARGYLLPATH='/usr/local/share/ArgyllCMS/'
-CORR_NAME='/WLEDFamily_07Feb11.ccss'
-
-# compose cli argument based on the above two variables.
-CORRECTIONS='-X'"$ARGYLLPATH""$CORR_NAME"
+# change this if you want to change the default corrections file/path.
+# example: CORRECTIONS='-X/path/to/ccmx-or-ccss-file'.
+CORRECTIONS=''
+# so we can not prompt if --no-corrections passed
+NO_CORRECTIONS=''
 
 PROGNAME="$(echo "$0" | sed 's!^.*/!!')"
 
@@ -46,7 +45,7 @@ yesno() { # returns true (0) or false (1) based on yes/no prompt
   valid='false'
   while true; do
     if [ "$1" ]; then
-      echo "$1"':'
+      printf "$1"': '
     fi
     read -r ynprompt
     case "$ynprompt" in
@@ -108,14 +107,13 @@ Options:
                          --whitepoint-preset (which lets common illuminants
                          be specified non-numerically).
 --correction <file>  Choose a colorimeter corrections file (.ccss, .ccmx).
+                         this is not necessary if you are using a spectrometer,
+                         but will greatly improve results with a colorimeter.
 --no-correction      Do not use any colorimeter correction matrices (probably
-                         desireable for a spectrometer - but I do not have one
+                         desirable for a spectrometer - but I do not have one
                          of those, regrettably).
-EOF
-echo '                         (default: '"'""$ARGYLLPATH"'/WLEDFamily_07Feb11.ccss'"'"')'
-   cat <<EOF
                          You can edit the lines near the very top of this
-                         script to change the default path.
+                         script to set a default corrections file path.
 -d, --display <num>  Specify your display number. 'dispcal -h' can show a list
                          of valid display numbers and their names.
                          (Default: 1)
@@ -311,7 +309,7 @@ while case $1 in -*) true;; *) false;; esac; do
     --calc) # when passed, only perform calibration stage
       MODE='profile_calc' # name of appropriate function
       ;;
-    -c|--dev|--device) # colorimeter device
+    -c|--dev|--device) # argyll colorimeter device number
       DEVICE='-c'"$2"
       shift 1
       ;;
@@ -323,6 +321,7 @@ while case $1 in -*) true;; *) false;; esac; do
       shift 1
       ;;
     --no-correction|--no-corrections)
+      NO_CORRECTIONS='1'
       CORRECTIONS=''
       ;;
     -d|--display)
@@ -419,23 +418,27 @@ while case $1 in -*) true;; *) false;; esac; do
       ;;
     -v|--verbose) # verbosity
       if [ "$#" -gt 1 ]; then
-        case "$2" in
-          [0-9]*) # hopefully this will be a real number
-            if [ "$2" -eq 0 ]; then
-              VERBOSE='' # do not be verbose
-            else
-              VERBOSE='-v'"$2"
-            fi
+        # fixme: need to check if expr fails (non-numeric value passed)
+        case "$(expr "$2" '+' 0)" in # this prevents breaking on numbers with leading zeroes
+          0)
+            VERBOSE='' # do not be verbose
+            shift 1
+            ;;
+          [1-9]*) # hopefully this will be a real number.
+            VERBOSE='-v'"$2"
             shift 1
             ;;
           *)
-            VERBOSE='-v2'
+            if [ "$2" ]; then
+              VERBOSE='-v2'
+            fi
             ;;
         esac;
       fi
       ;;
     *)
-      echo "Warning: Unknown parameter passed to listPackages: ""$1" 1>&2
+      1>&2 echo "Error: Unknown parameter passed: ""$1" 1>&2
+      exit 1
       ;;
   esac
   shift 1
@@ -453,6 +456,24 @@ if [ "$#" -lt 1 ]; then
 else
   PROFNAME="$1"
   shift 1
+fi
+
+# if no corrections were provided, and --no-correction(s) was not passed
+if [ ! "$CORRECTIONS" ] && [ ! "$NO_CORRECTIONS" ]; then
+  echo 'A colorimeter corrections matrix/spectral set (.ccmx/.ccss file) was'
+  echo 'not given.'
+  echo "If you meant to use one, please quit here and use '--correction <filename>'"
+  echo 'to provide an appropriate file.'
+  echo
+  echo 'If you are using a spectrometer, rather than a colorimeter, you do not'
+  echo "need one, and should answer yes to the following prompt."
+  echo "'--no-correction' can be used to disable this prompt in the future."
+  echo
+  yesno 'Continue without a colorimeter corrections matrix? (yes/no)'
+  if [ "$?" = '1' ]; then # break
+    echo 'Aborted per user request.'
+    exit 0
+  fi
 fi
 
 echo 'Making profile for '"$PROFNAME"'.'
