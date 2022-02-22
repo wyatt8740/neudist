@@ -11,8 +11,6 @@
 # change this if you want to change the default corrections file/path.
 # example: CORRECTIONS='-X/path/to/ccmx-or-ccss-file'.
 CORRECTIONS=''
-# so we can not prompt if --no-corrections passed
-NO_CORRECTIONS=''
 
 PROGNAME="$(echo "$0" | sed 's!^.*/!!')"
 
@@ -22,8 +20,15 @@ PROGNAME="$(echo "$0" | sed 's!^.*/!!')"
 SKIP_ADJUST='' # '-m'
 TEMPERATURE='-w0.3127,0.329' # d65 srgb white point
 GAMMA_RAMP=''
+COLLINK_3DLUT_TYPE='-3c' # for --3dlut mode only
+COLLINK_3DLUT_TARGET=''
+COLLINK_INTENT='-ip' # output intent. perceptual.
+COLLINK_RES='-r64' # resolution of 3D LUT (64x64x64)
+# FIXME: hardcoded path
+COLLINK_INPUT_PROFILE='/usr/share/color/argyll/ref/sRGB.icm'
 COLPROF_ALGORITHM='-aX' # XYZ CLUT. The default (-al) is great except that some browsers hate it.
 COLPROF_QUALITY='-qh'
+COLPROF_INTENT='-Tp' # output intent. perceptual
 BRIGHTNESS=''
 COLORANT='-d3'
 AUTOBRIGHT='true'
@@ -36,6 +41,8 @@ WINDOWRECT='-P0.5,0.5,'"$WINDOWSIZE"
 VERBOSE='-v2'
 TESTCHART_PATCHES='-f836' # this is the targen default, but 500 might be ample.
 INTERACTIVE='' # -Yp to not prompt for enter key
+NO_CORRECTIONS='' # We need this so we can not prompt if --no-corrections
+                  # passed
 
 MODE='all' # name of function to run before exiting; defaults to
             # calibrating and profiling
@@ -44,7 +51,6 @@ MODE='all' # name of function to run before exiting; defaults to
 
 yesno() { # returns true (0) or false (1) based on yes/no prompt
   ynprompt=''
-  valid='false'
   while true; do
     if [ "$1" ]; then
       printf "$1"': '
@@ -85,6 +91,20 @@ Options:
                             (--calc)
                          5. Calculate a final .ICC/.ICM profile using colprof
                          6. Check the profile's accuracy using profcheck
+--3dlut              Switches to 3D LUT creation mode. Uses an already
+                         existing ICC profile to create a 3D lookup table.
+                         The output format for the LUT will be will be IRIDAS
+                         (.cube); to change this, use --3dlut-type.
+--3dlut-icc          Specify the .icc profile to use as a destination profile
+    <value>              for 3D LUT creation.
+--3dlut-type         Create a 3D lookup table of type <value>. Implies --3dlut.
+    <value>              "Type" can be one of:
+                         c = IRIDAS (.cube) (default)
+                         e = eeColor (.txt)
+                         m = MadVR (.3dlut)
+                         An output profile name should still be specified, and
+                         the LUT file will have the same name (sans .icc) as
+                         the output profile file.
 -a, --algorithm      Algorithm type override
                          l = Lab cLUT (def.),
                          x = XYZ cLUT,
@@ -168,6 +188,23 @@ Options:
 
                          For most people, you should use -g instead, or let the
                          default be used instead (-g s).
+-i, --intent <value> Specify an output gamut mapping intent. One of:
+                         a  = absolute colorimetric
+                                (ICC Absolute Colorimetric),
+                         aw = absolute, with scaling to fit white point,
+                         aa = absolute appearance,
+                         r  = white point matched appearance
+                                (ICC Relative Colorimetric),
+                         la = luminance matched appearance,
+                         p  = perceptual (default)
+                                (ICC Perceptual),
+                         pa = perceptual appearance,
+                         lp = luminance preserving perceptual,
+                         ms = saturation
+                          s = enhanced saturation
+                                (ICC Saturation),
+                         al = absolute colorimetric (Lab)
+                         rl = white point matched colorimetric (Lab)
 --patches <num>      When creating a test chart (--testchart), use 'num'
                          patches. Larger values mean a slower profiling stage,
                          but possibly better results. 500 might be an
@@ -191,7 +228,7 @@ Options:
                          (--testchart), but need to create a '.ti3'.
                          '.ti3' files are needed to finally generate an ICC/ICM
                          file.
--q, --quality <lmhu> Final ICC profile Quality:
+-q, --quality <lmhu> Final ICC profile (or 3D LUT file) Quality:
                           Low, Medium, High (default), or Ultra.
                           Higher levels take more time but might give better
                           results. The resulting profiles are also usually
@@ -248,10 +285,20 @@ Options:
                          whitepoint is the default (lets Argyll determine your
                          display's native point).
 
+Note: Options valid for some operations may be ignored silently for others.
+  Usually, this is because the underlying tool does not accept the given
+  parameter. For instance, passing '--3dlut-type' when not creating a 3D LUT
+  (with --3dlut) will not cause an error, but calibration/profiling will be
+  done as if the parameter had not been passed.
+  This could be good or bad, depending on what you're trying to do, but the
+  upshot is that doing something like providing a correction matrix when you're
+  not sure if it's necessary for a given task is OK.
+  It also facilitates creating a shell alias for this script that contains
+  parameters like '--correction' that aren't necessary for all operation modes.
 
-If you want an option that exists in Argyll but which is not represented here,
-please open an issue or send a pull request.
-                     
+If you want an option that exists in Argyll, but can't find it here, please
+open an issue or send a pull request.
+
 EOF
   
 }
@@ -298,8 +345,8 @@ you should at least provide a correction file (if using a colorimeter).
 
 IMPORTANT NOTE:
 Unlike Argyll's 'dispcal,' this program currently requires spaces between flags
-and their assigned values. If this bothers you more than it does me, please
-report an issue and i will try to change this behavior.
+and their assigned values (no equals signs). If this bothers you more than it
+does me, please report an issue and i will try to change this behavior.
 EOF
 
   usage
@@ -322,6 +369,19 @@ while case $1 in -*) true;; *) false;; esac; do
       ;;
     -a|--algorithm)
       COLPROF_ALGORITHM='-a'"$2"
+      shift 1
+      ;;
+    -3|--3dlut)
+      MODE='threedeelut' #cant have a function name start with '3'
+      # 3c is already set as the type at top for COLLINK_3DLUT_TYPE,
+      # unless overridden
+      ;;
+    --3dlut-target)
+      COLLINK_3DLUT_TARGET="$2"
+      shift 1
+      ;;
+    --3dlut-type)
+      COLLINK_3DLUT_TYPE='-3'"$2"
       shift 1
       ;;
     -b|--brightness|--bright|--nits|--cdm2)
@@ -360,6 +420,11 @@ while case $1 in -*) true;; *) false;; esac; do
     -h|--help)
       helptext
       exit 0
+      ;;
+    -i|--intent)
+      COLPROF_INTENT='-T'"$2"
+      COLLINK_INTENT='-i'"$2"
+      shift 1
       ;;
     -g|--gamma)
       # see https://www.argyllcms.com/doc/dispcal.html#g
@@ -406,7 +471,7 @@ while case $1 in -*) true;; *) false;; esac; do
           exit 1
           ;;
       esac
-      COLORPROF_QUALITY='-q'"$level"
+      COLPROF_QUALITY='-q'"$level"
       shift 1
       ;;
     --skip-adjust)
@@ -507,7 +572,7 @@ else
 fi
 
 # if no corrections were provided, and --no-correction(s) was not passed
-if [ ! "$CORRECTIONS" ] && [ ! "$NO_CORRECTIONS" ]; then
+if ( [ "$MODE" = 'all' ] || [ "$MODE" = 'calib' ] ) && ( [ ! "$CORRECTIONS" ] && [ ! "$NO_CORRECTIONS" ] ); then
   echo 'A colorimeter corrections matrix/spectral set (.ccmx/.ccss file) was'
   echo 'not given.'
   echo "If you meant to use one, please quit here and use '--correction <filename>'"
@@ -627,7 +692,13 @@ profile_calc() {
 # PATCH_SEQUENCE "OPTIMIZE_DISPLAY_RESPONSE_DELAY"
 
 
-  colprof $COLPROF_ALGORITHM $COLPROF_QUALITY -v -D"$1"' - Argyll CMS' -qh "$1"
+  colprof \
+    $COLPROF_ALGORITHM \
+    $COLPROF_QUALITY \
+    -v \
+    $COLPROF_INTENT \
+    -D"$1"' - Argyll CMS' \
+    -qh "$1"
 }
 
 # need to use targen to make a .ti1 file
@@ -714,23 +785,69 @@ most() {
   profile_check "$1"
 }
 
-echo 'Running in mode "'"$MODE"'".'
-2>&1 $MODE "$PROFNAME" "$@" | tee "$PROFNAME"'.log'
 # colprof -v -S /usr/share/color/argyll/ref/sRGB.icm -D'4000k_10nit - Argyll CMS' -qh 4000k_10nit
 # this is to make a 3dlut
-collinker() {
-  /usr/bin/collink
-    -v
-    -qh
-    -G
-    -ip
-    -r64
-    -n
-    -3c
-    -en
-    -En
-    -b
-    sRGB.icm
-    "$PROFNAME".icc
-    "$PROFNAME".icc
-  }
+threedeelut() {
+# v: verbose
+# qh: quality high
+# G: gamut mapping mode using inverse outprofile A2B
+# ip: Perceptual intent (default)
+#   alternatives:
+#   ia: absolute
+#   iaw: absolute with scaling to fit white point
+#   iaa: absolute appearance
+#   ilp: luminance preserving perceptual appearance (desaturated)
+#   ip: perceptual
+#   ipa: perceptual appearance
+#   ims: saturation
+#   is: enhanced saturation
+#   ial: absolute colorimetric lab
+#   irl: white point matched colorimetric lab
+# r64: clut resolution 64x64x64
+# n: Don't preserve device linearization curves in result
+#    (if using a RAMDAC/gamma ramps you want to keep this)
+# 3: make a 3D LUT as well as devlink (IRIDAS cube)
+#   options:
+#   3e: eeColor txt
+#   3m: MadVR   3dlut
+#   3c: IRIDAS  cube
+# en: video encode input as:
+#   en: normal
+#   et: 16-235/255 (TV RGB)
+#   (THERE ARE MORE I DIDN'T WRITE DOWN)
+# En: video encode output as above^
+# b: "Forces RGB source 0,0,0 to map to RGB destination 0,0,0.
+#    This may be useful for Video proofing/calibration purposes,
+#    where the source is a standard colorspace such as Rec709, and
+#    the display device is well behaved with black at 0,0,0, and
+#    forcing the black mapping avoids any slight raising of the black
+#    due to display profile tolerances. On the other hand, any "dead
+#    zone" above zero device input, won't be corrected."
+#    (black point hack)
+
+# fixme: hardcoded icm file.
+# fixme: catch if in 3dlut mode and --3dlut-target wasn't provided here.
+  LUTNAME="$1" # PROFNAME
+  set -x
+  shift 1
+  /usr/bin/collink \
+    -v \
+    "$COLPROF_QUALITY" \
+    -G \
+    "$COLLINK_INTENT" \
+    "$COLLINK_RES" \
+    -n \
+    "$COLLINK_3DLUT_TYPE" \
+    -en \
+    -En \
+    -b \
+    "$COLLINK_INPUT_PROFILE" \
+    "$COLLINK_3DLUT_TARGET" \
+    "$LUTNAME".icc
+  set +x
+}
+
+
+
+echo 'Running in mode "'"$MODE"'".'
+2>&1 $MODE "$PROFNAME" "$@" | tee "$PROFNAME"'.log'
