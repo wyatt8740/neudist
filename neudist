@@ -23,7 +23,7 @@ GAMMA_RAMP=''
 COLLINK_3DLUT_TYPE='-3c' # for --3dlut mode only
 COLLINK_3DLUT_TARGET=''
 COLLINK_INTENT='-ip' # output intent. perceptual.
-COLLINK_RES='-r64' # resolution of 3D LUT (64x64x64)
+COLLINK_RES='-r65' # resolution of 3D LUT (65x65x65)
 # FIXME: hardcoded path
 COLLINK_INPUT_PROFILE='/usr/share/color/argyll/ref/sRGB.icm'
 COLPROF_ALGORITHM='-aX' # XYZ CLUT. The default (-al) is great except that some browsers hate it.
@@ -97,6 +97,9 @@ Options:
                          (.cube); to change this, use --3dlut-type.
 --3dlut-icc          Specify the .icc profile to use as a destination profile
     <value>              for 3D LUT creation.
+--3dlut-res <value>  Specify the resolution of the generated 3D LUT
+                         (will be cubed).
+                         (default: 65)
 --3dlut-type         Create a 3D lookup table of type <value>. Implies --3dlut.
     <value>              "Type" can be one of:
                          c = IRIDAS (.cube) (default)
@@ -378,6 +381,10 @@ while case $1 in -*) true;; *) false;; esac; do
       ;;
     --3dlut-target)
       COLLINK_3DLUT_TARGET="$2"
+      shift 1
+      ;;
+    --3dlut-res)
+      COLLINK_3DLUT_RES='-r'"$2"
       shift 1
       ;;
     --3dlut-type)
