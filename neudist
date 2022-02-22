@@ -26,9 +26,14 @@ COLLINK_INTENT='-ip' # output intent. perceptual.
 COLLINK_RES='-r65' # resolution of 3D LUT (65x65x65)
 # FIXME: hardcoded path
 COLLINK_INPUT_PROFILE='/usr/share/color/argyll/ref/sRGB.icm'
+colprof_get_input_prof() {
+  echo "$COLPROF_GET_INPUT_PROFILE"
+}
 COLPROF_ALGORITHM='-aX' # XYZ CLUT. The default (-al) is great except that some browsers hate it.
 COLPROF_QUALITY='-qh'
-COLPROF_INTENT='-Tp' # output intent. perceptual
+COLPROF_INTENT='-tp' # output intent. perceptual.
+COLPROF_INTENT_SAT='-Ts'
+COLPROF_SRC_GAMUT_PROFILE='-S'''
 BRIGHTNESS=''
 COLORANT='-d3'
 AUTOBRIGHT='true'
@@ -191,7 +196,15 @@ Options:
 
                          For most people, you should use -g instead, or let the
                          default be used instead (-g s).
--i, --intent <value> Specify an output gamut mapping intent. One of:
+-i, --input-profile  Specify a source gamut ICC/ICM profile. This is necessary
+    <value>              to create saturation intents in color profiles and to
+                         generate 3D LUT's.
+EOF
+echo '                         (default: '"$COLLINK_INPUT_PROFILE"')'
+cat << EOF
+--intent <value>     Specify an output gamut mapping for perceptual intent.
+                         (default: perceptual, 'p')
+                         'value' should be one of:
                          a  = absolute colorimetric
                                 (ICC Absolute Colorimetric),
                          aw = absolute, with scaling to fit white point,
@@ -199,15 +212,20 @@ Options:
                          r  = white point matched appearance
                                 (ICC Relative Colorimetric),
                          la = luminance matched appearance,
-                         p  = perceptual (default)
+                         p  = perceptual
                                 (ICC Perceptual),
                          pa = perceptual appearance,
                          lp = luminance preserving perceptual,
                          ms = saturation
                           s = enhanced saturation
                                 (ICC Saturation),
-                         al = absolute colorimetric (Lab)
+                         al = absolute colorimetric (Lab),
                          rl = white point matched colorimetric (Lab)
+--intent-sat <value> Specify an output gamut mapping for saturation intent.
+                         Uses the same values as --intent.
+                         Note that saturation intents are dependent on the
+                         source gamut (--input-profile).
+                         (default: enhanced saturation, 's')
 --patches <num>      When creating a test chart (--testchart), use 'num'
                          patches. Larger values mean a slower profiling stage,
                          but possibly better results. 500 might be an
@@ -379,7 +397,7 @@ while case $1 in -*) true;; *) false;; esac; do
       # 3c is already set as the type at top for COLLINK_3DLUT_TYPE,
       # unless overridden
       ;;
-    --3dlut-target)
+    --3dlut-target|--3dlut-icc)
       COLLINK_3DLUT_TARGET="$2"
       shift 1
       ;;
@@ -398,7 +416,7 @@ while case $1 in -*) true;; *) false;; esac; do
     --calibrate|--calib) # when passed, only perform calibration stage
       MODE='calib' # name of appropriate function
       ;;
-    --calc) # when passed, only perform calibration stage
+    --calc) # when passed, only perform icc profile creation stage
       MODE='profile_calc' # name of appropriate function
       ;;
     -c|--dev|--device) # argyll colorimeter device number
@@ -428,9 +446,17 @@ while case $1 in -*) true;; *) false;; esac; do
       helptext
       exit 0
       ;;
-    -i|--intent)
+    -i|--input-profile)
+      COLLINK_INPUT_PROFILE="$2"
+      shift 1
+      ;;
+    --intent)
       COLPROF_INTENT='-T'"$2"
       COLLINK_INTENT='-i'"$2"
+      shift 1
+      ;;
+    --intent-sat)
+      COLPROF_INTENT_SAT='-t'"$2"
       shift 1
       ;;
     -g|--gamma)
@@ -698,14 +724,17 @@ profile_calc() {
 # SMOOTH_B2A "YES"
 # PATCH_SEQUENCE "OPTIMIZE_DISPLAY_RESPONSE_DELAY"
 
-
+  set -x
   colprof \
     $COLPROF_ALGORITHM \
     $COLPROF_QUALITY \
     -v \
     $COLPROF_INTENT \
+    $COLPROF_INTENT_SAT \
+    '-S'"$COLLINK_INPUT_PROFILE" \
     -D"$1"' - Argyll CMS' \
     -qh "$1"
+  set +x
 }
 
 # need to use targen to make a .ti1 file
@@ -851,6 +880,9 @@ threedeelut() {
     "$COLLINK_INPUT_PROFILE" \
     "$COLLINK_3DLUT_TARGET" \
     "$LUTNAME".icc
+
+  # need to run twice in order to get the calibration curves in the .icc
+#  iccvcgt -i 
   set +x
 }
 
