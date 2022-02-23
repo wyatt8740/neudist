@@ -20,6 +20,7 @@ PROGNAME="$(echo "$0" | sed 's!^.*/!!')"
 SKIP_ADJUST='' # '-m'
 TEMPERATURE='-w0.3127,0.329' # d65 srgb white point
 GAMMA_RAMP=''
+BLACK_POINT_HACK='' # -b to enable for dispcal and collink operations
 COLLINK_3DLUT_TYPE='-3c' # for --3dlut mode only
 COLLINK_3DLUT_TARGET=''
 COLLINK_INTENT='-ip' # output intent. perceptual.
@@ -85,11 +86,12 @@ usage() {
   cat << EOF
 Options:
 --all                Perform all profiling, calibration, test chart generation,
-                     and .icc profile generation, all in one shot.
-                      This is the default behavior when no mode is specified.
+                         and .icc profile generation, all in one shot. This
+                         is the default behavior when no mode is specified.
                      Specifically, this option performs the following actions:
-                         1. Clear (reset) the video card gamma correction table
-                              (VCGT/VGCT/RAMDAC) with 'dispwin -c'.
+                         1. Clear (actually reset) the video card gamma
+                              correction table (VCGT/VGCT/RAMDAC) with
+                              'dispwin -c'.
                          2. Perform initial calibration with 'dispcal'
                               (creates a .cal file with VCGT values).
                               (--calib)
@@ -229,6 +231,10 @@ cat << EOF
                          Note that saturation intents are dependent on the
                          source gamut (--input-profile).
                          (default: enhanced saturation, 's')
+-n, --noninteractive Do not prompt or wait for the user to place the
+                         measurement device on the screen.
+                         See also: The similar but distinct option
+                         '--skip-adjust'.
 --patches <num>      When creating a test chart (--testchart), use 'num'
                          patches. Larger values mean a slower profiling stage,
                          but possibly better results. 500 might be an
@@ -413,6 +419,8 @@ while case $1 in -*) true;; *) false;; esac; do
       shift 1
       ;;
     -b|--brightness|--bright|--nits|--cdm2)
+      # automatic brightness gets used unless this is passed
+      unset AUTOBRIGHT
       BRIGHTNESS='-b'"$2"
       shift 1
       ;;
@@ -454,12 +462,12 @@ while case $1 in -*) true;; *) false;; esac; do
       shift 1
       ;;
     --intent)
-      COLPROF_INTENT='-T'"$2"
+      COLPROF_INTENT='-t'"$2"
       COLLINK_INTENT='-i'"$2"
       shift 1
       ;;
     --intent-sat)
-      COLPROF_INTENT_SAT='-t'"$2"
+      COLPROF_INTENT_SAT='-T'"$2"
       shift 1
       ;;
     -g|--gamma)
@@ -565,6 +573,17 @@ while case $1 in -*) true;; *) false;; esac; do
     --no-whitepoint)
       TEMPERATURE=''
       ;;
+    --wyatt)
+      # secret mode that just sets the things I usually want
+      COLPROF_INTENT='-tp' # perceptual
+      # luminance preserving perceptual is a nice balance between clipping
+      # and loss of visibility of detail, although it reduces overall
+      # saturation slightly:
+      COLPROF_INTENT_SAT='-Tlp' # luminance preserving perceptual
+      COLLINK_INTENT='-ilp'
+
+      # TESTCHART_PATCHES=-f500 # default 836
+      ;;
     -v|--verbose) # verbosity
       if [ "$#" -gt 1 ]; then
         # fixme: need to check if expr fails (non-numeric value passed)
@@ -625,20 +644,17 @@ if ( [ "$MODE" = 'all' ] || [ "$MODE" = 'calib' ] ) && ( [ ! "$CORRECTIONS" ] &&
   fi
 fi
 
-echo 'Making profile for '"$PROFNAME"'.'
-mkdir -p "$PROFNAME"
-cd "$PROFNAME"
-echo 'Entered directory: '"$PWD"
-
 if [ "$AUTOBRIGHT" ]; then
   BRIGHTNESS=''
 else
   if [ "$BRIGHTNESS" ]; then
     BRIGHTNESS='-b'"$BRIGHTNESS"
   else
-    1>&2 echo 'warning: condition that should be unreachable was reached in'
-    1>&2 echo 'script while setting requested brightness value. Setting to 80.'
-    BRIGHTNESS='-b80'
+    1>&2 cat << EOF
+Warning: condition that should be unreachable was reached in script while
+setting the requested brightness value. Using automatic brightness instead.
+EOF
+    BRIGHTNESS=''
   fi
 fi
 
@@ -679,6 +695,7 @@ dispcal \
   "$WINDOWRECT" \
   "$CORRECTIONS" \
   -qh \
+  $BLACK_POINT_HACK \
   $TEMPERATURE \
   $BRIGHTNESS \
   $GAMMA_RAMP \
@@ -827,7 +844,6 @@ most() {
 # colprof -v -S /usr/share/color/argyll/ref/sRGB.icm -D'4000k_10nit - Argyll CMS' -qh 4000k_10nit
 # this is to make a 3dlut
 threedeelut() {
-  cd ..
 # v: verbose
 # qh: quality high
 # G: gamut mapping mode using inverse outprofile A2B
@@ -870,13 +886,13 @@ threedeelut() {
   LUTNAME="$1" # PROFNAME
   set -x
   shift 1
-  # -b \
   /usr/bin/collink \
     -v \
     "$COLPROF_QUALITY" \
     -G \
     "$COLLINK_INTENT" \
     "$COLLINK_RES" \
+    "$BLACK_POINT_HACK" \
     -n \
     "$COLLINK_3DLUT_TYPE" \
     -en \
@@ -891,6 +907,15 @@ threedeelut() {
 }
 
 
-
+# todo: find a better solution for this.
 echo 'Running in mode "'"$MODE"'".'
+if [ "$MODE" = 'all' ]; then
+  echo 'Making profile for '"$PROFNAME"'.'
+  mkdir -p "$PROFNAME"
+  cd "$PROFNAME"
+  echo 'Entered directory: '"$PWD"
+else
+  # the dir already exists and we are probably inside of it.
+  cd ..
+fi
 2>&1 $MODE "$PROFNAME" "$@" | tee "$PROFNAME"'.log'
