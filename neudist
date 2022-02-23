@@ -51,6 +51,9 @@ NO_CORRECTIONS='' # We need this so we can not prompt if --no-corrections
 
 MODE='all' # name of function to run before exiting; defaults to
             # calibrating and profiling
+if [ "$NEUDIST_MODE_OVERRIDE" ]; then
+  MODE="$NEUDIST_MODE_OVERRIDE"
+fi
 
 # can't set variables within while loops?
 
@@ -824,6 +827,7 @@ most() {
 # colprof -v -S /usr/share/color/argyll/ref/sRGB.icm -D'4000k_10nit - Argyll CMS' -qh 4000k_10nit
 # this is to make a 3dlut
 threedeelut() {
+  cd ..
 # v: verbose
 # qh: quality high
 # G: gamut mapping mode using inverse outprofile A2B
@@ -866,6 +870,7 @@ threedeelut() {
   LUTNAME="$1" # PROFNAME
   set -x
   shift 1
+  # -b \
   /usr/bin/collink \
     -v \
     "$COLPROF_QUALITY" \
@@ -876,7 +881,6 @@ threedeelut() {
     "$COLLINK_3DLUT_TYPE" \
     -en \
     -En \
-    -b \
     "$COLLINK_INPUT_PROFILE" \
     "$COLLINK_3DLUT_TARGET" \
     "$LUTNAME".icc
