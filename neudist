@@ -10,6 +10,7 @@
 
 # change this if you want to change the default corrections file/path.
 # example: CORRECTIONS='-X/path/to/ccmx-or-ccss-file'.
+INVOCATION="$@" # save this before we start shifting
 CORRECTIONS=''
 
 PROGNAME="$(echo "$0" | sed 's!^.*/!!')"
@@ -918,4 +919,7 @@ else
   # the dir already exists and we are probably inside of it.
   cd ..
 fi
-2>&1 $MODE "$PROFNAME" "$@" | tee "$PROFNAME"'.log'
+echo "Invocation:" > "$PROFNAME"'.log'
+echo "$INVOCATION" >> "$PROFNAME"'.log'
+echo >> "$PROFNAME"'.log'
+2>&1 $MODE "$PROFNAME" "$@" | tee -a "$PROFNAME"'.log'
