@@ -716,7 +716,8 @@ profile() {
   if [ "$VERBOSE" ]; then
     VERB_PROF='-v'
   fi
-# k: load calibration into VGCT while reading
+  # k: load calibration into VGCT while reading
+set -x
 dispread \
   $VERB_PROF \
   $DEVICE \
@@ -728,6 +729,7 @@ dispread \
   "$CORRECTIONS" \
   -k"$1"'.cal' \
   "$1"
+set +x
 }
 
 # actually make an icc profile from info from the .ti3
