@@ -120,9 +120,9 @@ Options:
                          the LUT file will have the same name (sans .icc) as
                          the output profile file.
 -a, --algorithm      Algorithm type override
-                         l = Lab cLUT (def.),
+                         l = Lab cLUT (Argyll preferred),
                          x = XYZ cLUT,
-                         X = display XYZ cLUT + matrix,
+                         X = display XYZ cLUT + matrix (Neudist default),
                          Y = display XYZ cLUT + debug matrix,
                          g = gamma+matrix,
                          s = shaper+matrix,
