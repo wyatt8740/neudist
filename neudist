@@ -422,7 +422,7 @@ while case $1 in -*) true;; *) false;; esac; do
     -b|--brightness|--bright|--nits|--cdm2)
       # automatic brightness gets used unless this is passed
       unset AUTOBRIGHT
-      BRIGHTNESS='-b'"$2"
+      BRIGHTNESS="$2"
       shift 1
       ;;
     --calibrate|--calib) # when passed, only perform calibration stage
@@ -655,7 +655,7 @@ else
 Warning: condition that should be unreachable was reached in script while
 setting the requested brightness value. Using automatic brightness instead.
 EOF
-    BRIGHTNESS=''
+    # BRIGHTNESS=''
   fi
 fi
 
