@@ -764,7 +764,9 @@ profile_calc() {
 # d3: video rgb
 # f500: 500 patches
 testchart() {
+  set -x
   targen $COLORANT $TESTCHART_PATCHES "$1"
+  set +x
 }
 
 profile_check() {
@@ -773,7 +775,7 @@ profcheck \
   "$1"'.icc'
 }
 
-# make the actuall .icc file containing profile-based lookup tables
+# make the actual .icc file containing profile-based lookup tables
 create_plot() {
 iccgamut \
   -v \

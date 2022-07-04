@@ -50,3 +50,12 @@ is working pretty much on par with DisplayCAL while using far fewer resources.
 profiles, it seems. So I have made XYZ cLUT + Matrix the default
 (`--algorithm X`). For the Argyll default, do `--algorithm l`. New firefox
 (tested on 89) seems to handle it alright.
+
+* While it works very nicely for doing calibration, profiling, and profile
+creation in one swoop (probably the most common use case), attempting to use it
+to skip some steps may not work as nicely as I would like for it to. This
+functionality is currently documented so that I might fix it some day, but if
+you want to do something like creating multiple profiles from a single
+measurement session you may be better off reading the logs to find out what
+arguments to pass to the Argyll CMS command line tools directly.
+
