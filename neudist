@@ -686,7 +686,26 @@ fi
 
 calib() {
 #    $DISPLAY 
-  set -x
+  #  set -x
+echo dispcal \
+  $VERBOSE \
+  $INTERACTIVE \
+  $DEVICE \
+  $SKIP_ADJUST \
+  -yn \
+  "$WINDOWRECT" \
+  "$CORRECTIONS" \
+  -qh \
+  $BLACK_POINT_HACK \
+  $TEMPERATURE \
+  $BRIGHTNESS \
+  $GAMMA_RAMP \
+  $DRIFT \
+  -f1.0 \
+  -k0 \
+  -A4.0 \
+  -b \
+  "$1"
 dispcal \
   $VERBOSE \
   $INTERACTIVE \
@@ -706,7 +725,6 @@ dispcal \
   -A4.0 \
   -b \
   "$1"
-set +x
 }
 
 # profile
@@ -717,7 +735,18 @@ profile() {
     VERB_PROF='-v'
   fi
   # k: load calibration into VGCT while reading
-set -x
+echo dispread \
+  $VERB_PROF \
+  $DEVICE \
+  $INTERACTIVE \
+  -c1 \
+  $DRIFT \
+  -yn \
+  "$WINDOWRECT" \
+  "$CORRECTIONS" \
+  -k"$1"'.cal' \
+  "$1"
+
 dispread \
   $VERB_PROF \
   $DEVICE \
@@ -729,7 +758,6 @@ dispread \
   "$CORRECTIONS" \
   -k"$1"'.cal' \
   "$1"
-set +x
 }
 
 # actually make an icc profile from info from the .ti3
@@ -747,7 +775,16 @@ profile_calc() {
 # SMOOTH_B2A "YES"
 # PATCH_SEQUENCE "OPTIMIZE_DISPLAY_RESPONSE_DELAY"
 
-  set -x
+  echo colprof \
+    $COLPROF_ALGORITHM \
+    $COLPROF_QUALITY \
+    -v \
+    $COLPROF_INTENT \
+    $COLPROF_INTENT_SAT \
+    '-S'"$COLLINK_INPUT_PROFILE" \
+    -D"$1"' - Argyll CMS' \
+    -qh "$1"
+
   colprof \
     $COLPROF_ALGORITHM \
     $COLPROF_QUALITY \
@@ -757,16 +794,14 @@ profile_calc() {
     '-S'"$COLLINK_INPUT_PROFILE" \
     -D"$1"' - Argyll CMS' \
     -qh "$1"
-  set +x
 }
 
 # need to use targen to make a .ti1 file
 # d3: video rgb
 # f500: 500 patches
 testchart() {
-  set -x
+  echo targen $COLORANT $TESTCHART_PATCHES "$1"
   targen $COLORANT $TESTCHART_PATCHES "$1"
-  set +x
 }
 
 profile_check() {
@@ -889,8 +924,22 @@ threedeelut() {
 # fixme: hardcoded icm file.
 # fixme: catch if in 3dlut mode and --3dlut-target wasn't provided here.
   LUTNAME="$1" # PROFNAME
-  set -x
   shift 1
+  echo /usr/bin/collink \
+    -v \
+    "$COLPROF_QUALITY" \
+    -G \
+    "$COLLINK_INTENT" \
+    "$COLLINK_RES" \
+    "$BLACK_POINT_HACK" \
+    -n \
+    "$COLLINK_3DLUT_TYPE" \
+    -en \
+    -En \
+    "$COLLINK_INPUT_PROFILE" \
+    "$COLLINK_3DLUT_TARGET" \
+    "$LUTNAME".icc
+
   /usr/bin/collink \
     -v \
     "$COLPROF_QUALITY" \
@@ -908,7 +957,6 @@ threedeelut() {
 
   # need to run twice in order to get the calibration curves in the .icc
 #  iccvcgt -i 
-  set +x
 }
 
 
