@@ -1,6 +1,6 @@
 # neudist
 
-Not Entirely Unlike a DISplay Tester:
+Not Entirely Unlike a DISplay Tester.
 
 A helper tool (bourne shell script) for calibrating and profiling displays
 with Argyll CMS.
@@ -46,16 +46,44 @@ is working pretty much on par with DisplayCAL while using far fewer resources.
 
 * Yes.
 
+* Please report bugs as you find them; pull requests are even more appreciated.
+
 * Not my bug, but older Firefox, Seamonkey, and Pale Moon don't like L*A*B
 profiles, it seems. So I have made XYZ cLUT + Matrix the default
 (`--algorithm X`). For the Argyll default, do `--algorithm l`. New firefox
 (tested on 89) seems to handle it alright.
 
 * While it works very nicely for doing calibration, profiling, and profile
-creation in one swoop (probably the most common use case), attempting to use it
-to skip some steps may not work as nicely as I would like for it to. This
-functionality is currently documented so that I might fix it some day, but if
-you want to do something like creating multiple profiles from a single
-measurement session you may be better off reading the logs to find out what
-arguments to pass to the Argyll CMS command line tools directly.
+creation in one swoop (probably the most common use case), attempting to skip
+some steps may not work as nicely as I would like for it to. That's bad
+mostly because if some stage of calibrating/profiling fails, you have to start
+over from square one or follow the rest of the script manually.
+
+* The aforementioned functionality is currently documented so that I might fix
+it some day, but if you want to do something like creating multiple profiles
+from a single measurement session you may be better off reading the logs to
+find out what arguments to pass to the Argyll CMS command line tools directly.
+I also recommend doing this as a way to gain an insight into how display
+calibration/profiling actually works.
+
+* Argyll is an extremely powerful set of programs, and what my program exposes
+barely scratches the surface of what it can do, even just within the realm of
+display calibration/profiling.
+
+* Unfortunately, due to how I chose to implement the script, it may be
+challenging for me to fully support doing smaller individual steps. There are
+also plenty of places where documentation could be improved or command line
+flags could be renamed/added for additional functionality.
+
+* Some paths are hardcoded. It would be wise to search through the script
+and see where it is mentioning paths like `/usr/` to make sure you have the
+files it is going to look for on your system. The Argyll CMS package puts most
+of those files in the right places on Debian and Debian derived systems, but
+I can't guarantee it works every time.
+
+* I believe that right now I am implicitly assuming anyone who is calibrating
+and profiling their screens is targetting SRGB. This is a clearly bad
+assumption. I just don't have any wide gamut screens and haven't been bugged
+quite enough about it to fix it. Please bug me if you consider it important,
+and it will greatly increase the odds that I will try to do something about it!
 
