@@ -42,6 +42,33 @@ your colorimeter instead.
 Tested so far on a PowerBook G4 and also my x86 (amd64) desktop, where it
 is working pretty much on par with DisplayCAL while using far fewer resources.
 
+### Usage
+
+This is just a single example that I have personally used on one of my systems;
+for a better understanding of why I do what I am doing here, definitely check
+the `--help` output and consider trying to read the script sources to see the
+comments I have strung all throughout it. Also refer to the Argyll CMS
+documentation if you are still confused; it is in many cases much better
+written (although more technical in some cases).
+
+    ./neudist \
+    --all \
+    --correction /path/to/optional/corrections/file/HB140WX1-300_i1_DisplayPro_Colormunki_Display.ccmx \
+    --intent p \
+    --intent-sat lp \
+    --input-profile /usr/share/color/argyll/ref/sRGB.icm \
+    --noninteractive \
+    --skip-adjust \
+    --whitepoint-preset D65 \
+    --gamma s \
+    HB140WX1-300-fullbright_2022-09-20
+
+Do note that the corrections file I used above is not the correct one for my
+panel (in my Thinkpad X201 tablet); I don't have a spectrometer for making
+that. It is simply a panel that I believe has similar properties, is of the
+same display technology, and was made by the same company at a similar point
+in time. It does a pretty good job.
+
 ### Bugs
 
 * Yes.
