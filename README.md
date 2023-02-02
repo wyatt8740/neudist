@@ -52,16 +52,16 @@ documentation if you are still confused; it is in many cases much better
 written (although more technical in some cases).
 
     ./neudist \
-    --all \
-    --correction /path/to/optional/corrections/file/HB140WX1-300_i1_DisplayPro_Colormunki_Display.ccmx \
-    --intent p \
-    --intent-sat lp \
-    --input-profile /usr/share/color/argyll/ref/sRGB.icm \
-    --noninteractive \
-    --skip-adjust \
-    --whitepoint-preset D65 \
-    --gamma s \
-    HB140WX1-300-fullbright_2022-09-20
+        --all \
+        --correction /path/to/optional/corrections/file/HB140WX1-300_i1_DisplayPro_Colormunki_Display.ccmx \
+        --intent p \
+        --intent-sat lp \
+        --input-profile /usr/share/color/argyll/ref/sRGB.icm \
+        --noninteractive \
+        --skip-adjust \
+        --whitepoint-preset D65 \
+        --gamma s \
+        HB140WX1-300-fullbright_2022-09-20
 
 Do note that the corrections file I used above is not the correct one for my
 panel (in my Thinkpad X201 tablet); I don't have a spectrometer for making
