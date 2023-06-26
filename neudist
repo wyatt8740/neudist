@@ -21,13 +21,19 @@ PROGNAME="$(echo "$0" | sed 's!^.*/!!')"
 SKIP_ADJUST='' # '-m'
 TEMPERATURE='-w0.3127,0.329' # d65 srgb white point
 GAMMA_RAMP=''
-BLACK_POINT_HACK='' # -b to enable for dispcal and collink operations
+if [ "$NEUDIST_BLACK_POINT_HACK" ]; then
+  BLACK_POINT_HACK='-b'
+else
+  BLACK_POINT_HACK='' # -b to enable for dispcal and collink operations
+fi
 COLLINK_3DLUT_TYPE='-3c' # for --3dlut mode only
 COLLINK_3DLUT_TARGET=''
 COLLINK_INTENT='-ip' # output intent. perceptual.
 COLLINK_RES='-r65' # resolution of 3D LUT (65x65x65)
 # FIXME: hardcoded path
-COLLINK_INPUT_PROFILE='/usr/share/color/argyll/ref/sRGB.icm'
+# adobe rgb 1998 == ClayRGB1998
+COLLINK_INPUT_PROFILE='/usr/share/color/argyll/ref/ClayRGB1998.icm'
+# COLLINK_INPUT_PROFILE='/usr/share/color/argyll/ref/sRGB.icm'
 colprof_get_input_prof() {
   echo "$COLPROF_GET_INPUT_PROFILE"
 }
@@ -447,7 +453,7 @@ while case $1 in -*) true;; *) false;; esac; do
       CORRECTIONS=''
       ;;
     -d|--display)
-      DISPLAY='-d'"$2"
+      DISPLAYNO='-d'"$2"
       shift 1
       ;;
     --drift)
@@ -691,6 +697,7 @@ echo dispcal \
   $VERBOSE \
   $INTERACTIVE \
   $DEVICE \
+  $DISPLAYNO \
   $SKIP_ADJUST \
   -yn \
   "$WINDOWRECT" \
@@ -710,6 +717,7 @@ dispcal \
   $VERBOSE \
   $INTERACTIVE \
   $DEVICE \
+  $DISPLAYNO \
   $SKIP_ADJUST \
   -yn \
   "$WINDOWRECT" \
@@ -738,6 +746,7 @@ profile() {
 echo dispread \
   $VERB_PROF \
   $DEVICE \
+  $DISPLAYNO \
   $INTERACTIVE \
   -c1 \
   $DRIFT \
@@ -750,6 +759,7 @@ echo dispread \
 dispread \
   $VERB_PROF \
   $DEVICE \
+  $DISPLAYNO \
   $INTERACTIVE \
   -c1 \
   $DRIFT \
@@ -775,19 +785,17 @@ profile_calc() {
 # SMOOTH_B2A "YES"
 # PATCH_SEQUENCE "OPTIMIZE_DISPLAY_RESPONSE_DELAY"
 
-  echo colprof \
-    $COLPROF_ALGORITHM \
-    $COLPROF_QUALITY \
-    -v \
-    $COLPROF_INTENT \
-    $COLPROF_INTENT_SAT \
-    '-S'"$COLLINK_INPUT_PROFILE" \
-    -D"$1"' - Argyll CMS' \
-    -qh "$1"
+  if [ "$BLACK_POINT_HACK" ]; then
+    COLPROF_BLACKPT='-B0,0,0'
+  else
+    COLPROF_BLACKPT=''
+  fi
+  set -x
 
   colprof \
     $COLPROF_ALGORITHM \
     $COLPROF_QUALITY \
+    $COLPROF_BLACKPT \
     -v \
     $COLPROF_INTENT \
     $COLPROF_INTENT_SAT \
@@ -866,7 +874,7 @@ main() {
 # sleep 10
 #  xcalib -c # same as dispwin -c, but xcalib is not part of Argyll CMS
 # reset "ramdac" color ramps
-  dispwin -c # TODO: make it possible to specify which display to reset
+  dispwin $DISPLAYNO -c # TODO: make it possible to specify which display to reset
   calib "$@"
   testchart "$1"
   profile "$@"
