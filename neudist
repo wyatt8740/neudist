@@ -771,6 +771,7 @@ echo dispread \
   $VERB_PROF \
   $DEVICE \
   $DISPLAYNO \
+  $DISPLAYTYPE \
   $INTERACTIVE \
   -c1 \
   $DRIFT \
@@ -784,6 +785,7 @@ dispread \
   $VERB_PROF \
   $DEVICE \
   $DISPLAYNO \
+  $DISPLAYTYPE \
   $INTERACTIVE \
   -c1 \
   $DRIFT \
