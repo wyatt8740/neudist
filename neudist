@@ -48,6 +48,8 @@ AUTOBRIGHT='true'
 DRIFT='' # -Ib, -Iw, -Ibw - black level and white level drift compensation
 PROFNAME=''
 # DISPLAY='-d 1'
+DISPLAYNO=''
+DISPLAYTYPE=''
 DEVICE='-c1'
 WINDOWSIZE='1.33'
 WINDOWRECT='-P0.5,0.5,'"$WINDOWSIZE"
@@ -172,6 +174,21 @@ Options:
 -d, --display <num>  Specify your display number. 'dispcal -h' can show a list
                          of valid display numbers and their names.
                          (Default: 1)
+--display-type <?>   Specify a display type to be used. The options available
+                         depend on your specific measuring instrument(s); see
+                         https://www.argyllcms.com/doc/instruments.html to find
+                         out what modes yours supports.
+                         Example display types (for i1 Display Pro) are:
+                           'n' - non-refresh display(s), like LCD's - screens
+                                 that do not work by re-illuminating their
+                                 faces on each draw, but have a constant
+                                 light source (like a backlight).
+                           'r' -  refresh-type Displays that 'flicker' or
+                                  repeatedly re-draw a picture by illuminating
+                                  an illuminant for a specific portion of the
+                                  screen. This includes CRTs, plasmas, and(?)
+                                  OLED's.
+                         (Default is specific to each measurement device.)
 --drift <b|w>        If your display has an unstable black or white point
                          (or both), use this option to have 'dispcal' and
                          'dispread' account for that.
@@ -456,6 +473,9 @@ while case $1 in -*) true;; *) false;; esac; do
       DISPLAYNO='-d'"$2"
       shift 1
       ;;
+    --display-type)
+      DISPLAYTYPE='-y'"$2"
+      shift 1
     --drift)
       DRIFT='-I'"$2"
       shift 1
@@ -698,6 +718,7 @@ echo dispcal \
   $INTERACTIVE \
   $DEVICE \
   $DISPLAYNO \
+  $DISPLAYTYPE \
   $SKIP_ADJUST \
   -yn \
   "$WINDOWRECT" \
@@ -718,6 +739,7 @@ dispcal \
   $INTERACTIVE \
   $DEVICE \
   $DISPLAYNO \
+  $DISPLAYTYPE \
   $GAMMA_RAMP \
   $SKIP_ADJUST \
   -yn \
