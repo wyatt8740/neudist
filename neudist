@@ -476,6 +476,7 @@ while case $1 in -*) true;; *) false;; esac; do
     --display-type)
       DISPLAYTYPE='-y'"$2"
       shift 1
+      ;;
     --drift)
       DRIFT='-I'"$2"
       shift 1
