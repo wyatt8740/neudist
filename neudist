@@ -718,6 +718,7 @@ dispcal \
   $INTERACTIVE \
   $DEVICE \
   $DISPLAYNO \
+  $GAMMA_RAMP \
   $SKIP_ADJUST \
   -yn \
   "$WINDOWRECT" \
@@ -786,7 +787,9 @@ profile_calc() {
 # PATCH_SEQUENCE "OPTIMIZE_DISPLAY_RESPONSE_DELAY"
 
   if [ "$BLACK_POINT_HACK" ]; then
-    COLPROF_BLACKPT='-B0,0,0'
+    # doesn't actually work, even though documented?!?
+    # COLPROF_BLACKPT='-B0,0,0'
+    COLPROF_BLACKPT=''
   else
     COLPROF_BLACKPT=''
   fi
